@@ -1,0 +1,26 @@
+{
+  "eeg_only": {
+    "accuracy_mean": 0.7215,
+    "accuracy_std": 0.1144,
+    "kappa_mean": 0.4431,
+    "kappa_std": 0.2289,
+    "itr_mean": 2.6938,
+    "itr_std": 3.0559
+  },
+  "emg_only": {
+    "accuracy_mean": 0.65,
+    "accuracy_std": 0.1154,
+    "kappa_mean": 0.3001,
+    "kappa_std": 0.2308,
+    "itr_mean": 1.5279,
+    "itr_std": 2.5017
+  },
+  "fusion": {
+    "accuracy_mean": 0.7418,
+    "accuracy_std": 0.1119,
+    "kappa_mean": 0.4836,
+    "kappa_std": 0.2237,
+    "itr_mean": 3.0537,
+    "itr_std": 2.9242
+  }
+}

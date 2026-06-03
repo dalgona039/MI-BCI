@@ -1,0 +1,37 @@
+{
+  "w_emg_mean_vs_emg_snr_db": {
+    "label": "w_emg vs EMG SNR (dB)",
+    "rho": 0.0606,
+    "p": 0.669468,
+    "sig": "ns",
+    "n": 52
+  },
+  "w_emg_mean_vs_emg_activation": {
+    "label": "w_emg vs EMG Activation",
+    "rho": -0.0731,
+    "p": 0.606641,
+    "sig": "ns",
+    "n": 52
+  },
+  "w_emg_mean_vs_accuracy": {
+    "label": "w_emg vs Classification Accuracy",
+    "rho": -0.0317,
+    "p": 0.823502,
+    "sig": "ns",
+    "n": 52
+  },
+  "w_eeg_mean_vs_accuracy": {
+    "label": "w_eeg vs Classification Accuracy",
+    "rho": 0.0317,
+    "p": 0.823502,
+    "sig": "ns",
+    "n": 52
+  },
+  "w_eeg_mean_vs_emg_snr_db": {
+    "label": "w_eeg vs EMG SNR (dB)",
+    "rho": -0.0606,
+    "p": 0.669468,
+    "sig": "ns",
+    "n": 52
+  }
+}

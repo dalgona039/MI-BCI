@@ -1,0 +1,10 @@
+comparison,metric,W_stat,p_value,p_corr,effect_r,effect,sig
+Fusion vs EEG-only,Accuracy,557.0000,0.3202,1.0000,0.1391,small,ns
+Fusion vs EEG-only,Cohen's κ,557.5000,0.3226,1.0000,0.1385,small,ns
+Fusion vs EEG-only,ITR,599.5000,0.5517,1.0000,0.0833,negligible,ns
+Fusion vs sEMG-only,Accuracy,167.0000,0.0000,0.0001,0.6423,large,***
+Fusion vs sEMG-only,Cohen's κ,168.5000,0.0000,0.0001,0.6403,large,***
+Fusion vs sEMG-only,ITR,237.0000,0.0001,0.0010,0.5468,large,***
+EEG-only vs sEMG-only,Accuracy,338.5000,0.0024,0.0212,0.4259,medium,*
+EEG-only vs sEMG-only,Cohen's κ,337.5000,0.0023,0.0205,0.4272,medium,*
+EEG-only vs sEMG-only,ITR,352.0000,0.0036,0.0320,0.4082,medium,*

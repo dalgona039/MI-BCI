@@ -1,0 +1,11 @@
+model,dataset,n_subjects,validation,modality,accuracy,kappa,itr_bits_min,year,reference
+EEGNet,BCI Competition IV 2a,9,LOSO,EEG,0.686,0.382,—,2018,Lawhern et al. 2018 J Neural Eng
+ShallowConvNet,BCI Competition IV 2a,9,10-fold CV,EEG,0.722,0.429,—,2017,Schirrmeister et al. 2017 Hum Brain Mapp
+DeepConvNet,BCI Competition IV 2a,9,10-fold CV,EEG,0.694,0.392,—,2017,Schirrmeister et al. 2017 Hum Brain Mapp
+FBCSP+SVM,BCI Competition IV 2a,9,LOSO,EEG,0.730,0.439,—,2008,Ang et al. 2008 Int J Neural Syst
+EEGTransformer,BCI Competition IV 2a,9,LOSO,EEG,0.738,0.451,—,2021,Song et al. 2021 IEEE TNSRE
+EEGNet+sEMG (concat),GigaDB Cho 2017,52,LOSO,EEG+sEMG,0.697,0.394,2.81,2022,Park et al. 2022 Sensors
+EMG-LSTM only,GigaDB Cho 2017,52,LOSO,sEMG,0.634,0.268,—,2021,Nasr et al. 2021 Front Hum Neurosci
+HybridBCIModel (ours),GigaDB Cho 2017,52,LOSO,EEG+sEMG,0.742,0.484,3.44,2025,This work
+EEGNet-ablation (ours),GigaDB Cho 2017,52,LOSO,EEG only,—,—,—,2025,This work (ablation)
+BiLSTM-ablation (ours),GigaDB Cho 2017,52,LOSO,sEMG only,—,—,—,2025,This work (ablation)

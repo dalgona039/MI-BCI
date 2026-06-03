@@ -1,0 +1,58 @@
+{
+  "sid": 29,
+  "status": "ok",
+  "onnx_path": "/Volumes/a3122a1/MI-BCI/BCI_Research/results/onnx/bci_s29.onnx",
+  "opset": 17,
+  "file_size_mb": 4.08,
+  "inputs": {
+    "eeg": [
+      1,
+      64,
+      2304
+    ],
+    "emg": [
+      1,
+      4,
+      288
+    ]
+  },
+  "outputs": {
+    "logits": [
+      1,
+      2
+    ],
+    "probs": [
+      1,
+      2
+    ],
+    "label": [
+      1
+    ]
+  },
+  "label_map": {
+    "0": "Left MI",
+    "1": "Right MI"
+  },
+  "verify": "ok",
+  "latency_ms": 11.61,
+  "config": {
+    "member": "A",
+    "strategy": "baseline_v4",
+    "n_eeg_ch": 64,
+    "n_emg_ch": 4,
+    "n_times": 2304,
+    "n_classes": 2,
+    "emg_ds_factor": 8,
+    "eegnet_F1": 8,
+    "eegnet_D": 2,
+    "eegnet_kern_len": 256,
+    "eegnet_dropout": 0.5,
+    "lstm_hidden": 128,
+    "lstm_layers": 2,
+    "lstm_dropout": 0.3,
+    "clf_dropout": 0.3,
+    "feat_dim": 256,
+    "random_seed": 42,
+    "n_times_emg": 288
+  }
+}

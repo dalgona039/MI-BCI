@@ -14,9 +14,13 @@ cache/
 # Generated / Preprocessed Data
 # =============================================
 BCI_Research/preprocessed/
-BCI_Research/results/
 *.h5
 *.mat
+
+# Model checkpoints & ONNX (large binaries — use Git LFS or share separately)
+*.pt
+*.onnx
+BCI_Research/results/vr_sessions/
 
 # =============================================
 # Python Environment & Build Artifacts

@@ -1,0 +1,7 @@
+group,metric,n,fusion_mean,eeg_mean,W_stat,p_raw,effect_r,effect,p_corr,sig
+High-sEMG,Accuracy,27,0.7776,0.7253,69.5000,0.0071,0.5280,large,0.0425,*
+High-sEMG,Cohen's κ,27,0.5552,0.4506,71.0000,0.0079,0.5205,large,0.0476,*
+High-sEMG,ITR,27,3.8748,2.8836,76.0000,0.0115,0.4956,medium,0.0690,ns
+Low-sEMG,Accuracy,25,0.7031,0.7175,99.0000,0.0872,0.3417,medium,0.5232,ns
+Low-sEMG,Cohen's κ,25,0.4061,0.4350,99.5000,0.0900,0.3390,medium,0.5400,ns
+Low-sEMG,ITR,25,2.1669,2.4889,82.0000,0.0296,0.4332,medium,0.1775,ns
