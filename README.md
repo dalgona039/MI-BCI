@@ -77,9 +77,15 @@ MI-BCI/
 │   ├── Packages/
 │   └── ProjectSettings/
 │
-├── BCI_Research/                 # 학습 결과물 (git 제외)
-│   ├── preprocessed/             # 전처리된 HDF5 파일
-│   └── results/                  # 체크포인트, ONNX, 분석 결과
+├── BCI_Research/
+│   ├── preprocessed/             # 전처리된 HDF5 파일 (git 제외 — 대용량)
+│   └── results/
+│       ├── ablation/             # 절제 연구 결과 CSV/JSON/PNG ✓ (git 포함)
+│       ├── attention/            # Attention 분석 결과 ✓ (git 포함)
+│       ├── calibration/          # Calibration 결과 ✓ (git 포함)
+│       ├── checkpoints_A/        # 모델 체크포인트 .pt (git 제외 — 212 MB)
+│       ├── onnx/                 # ONNX 변환 파일 (git 제외 — 212 MB)
+│       └── vr_sessions/          # VR 세션 로그 (git 제외)
 │
 └── generate_progress_report.py   # 진행 상황 보고서 자동 생성
 ```
@@ -289,6 +295,9 @@ python src/train_flip_full.py --drive_root /content/drive/MyDrive/MI-BCI
 ```bash
 python src/export_onnx.py --all --out_dir BCI_Research/results/onnx
 ```
+
+> **참고**: `.pt` 체크포인트(212 MB)와 `.onnx` 파일(212 MB)은 크기 문제로 저장소에 포함되지 않습니다.  
+> 학습 완료 후 로컬에 생성되며, Google Drive 등 외부 스토리지로 공유하세요.
 
 ### 4. 통계 검정
 ```bash
