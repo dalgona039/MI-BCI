@@ -1,0 +1,86 @@
+# =============================================
+# Paper (mandatory exclusion)
+# =============================================
+paper/
+
+# =============================================
+# Raw Datasets (large binary data, not for git)
+# =============================================
+GigaDB_100295/
+BCICIV_2a_gdf/
+cache/
+
+# =============================================
+# Generated / Preprocessed Data
+# =============================================
+BCI_Research/preprocessed/
+BCI_Research/results/
+*.h5
+*.mat
+
+# =============================================
+# Python Environment & Build Artifacts
+# =============================================
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# =============================================
+# Jupyter Notebooks
+# =============================================
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# =============================================
+# Unity Build Artifacts
+# =============================================
+BCI-VR/Library/
+BCI-VR/Logs/
+BCI-VR/build/
+BCI-VR/UserSettings/
+BCI-VR/BCI-VR_BurstDebugInformation_DoNotShip/
+BCI-VR/.utmp/
+*.apk
+*.aab
+*.ipa
+
+# =============================================
+# Binary Documents (personal & paper drafts)
+# =============================================
+*.pdf
+*.docx
+*.doc
+~$*.docx
+~$*.doc
+논문 1차본.*
+
+# =============================================
+# AI Prompt / Context Files (internal tools)
+# =============================================
+CLAUDE_CODE_PROMPT.md
+CLAUDE_CONTEXT.md
+BIAS_FIX_PROMPT.md
+BIAS_FIX_PROMPT_v2.md
+MASTER_PROMPT_v1.md
+
+# =============================================
+# Miscellaneous
+# =============================================
+.DS_Store
+Thumbs.db
+*.png
+*.jpg
+*.jpeg
+*.log
+*.tmp
+*.bak

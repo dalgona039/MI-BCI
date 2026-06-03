@@ -1,0 +1,80 @@
+{
+  "member": "A",
+  "strategy": "baseline_v4",
+  "random_seed": 42,
+  "eeg_fs": 512,
+  "bpf_low": 4.0,
+  "bpf_high": 40.0,
+  "bpf_order": 4,
+  "epoch_tmin": -0.5,
+  "epoch_tmax": 4.0,
+  "baseline": [
+    -0.5,
+    0.0
+  ],
+  "reject_thresh_ptp": 600.0,
+  "eeg_unit": "uV",
+  "mu_band": [
+    8,
+    12
+  ],
+  "beta_band": [
+    13,
+    30
+  ],
+  "norm_method": "zscore",
+  "eeg_field": [
+    "imagery_left",
+    "imagery_right"
+  ],
+  "event_field": "imagery_event",
+  "event_threshold": 0,
+  "n_ica": 25,
+  "ica_hp_for_fit": 1.0,
+  "eog_threshold_z": 3.0,
+  "use_muscle_ica": true,
+  "muscle_threshold": 0.8,
+  "protect_motor_ica": true,
+  "motor_protect_chs": [
+    "C3",
+    "C1",
+    "Cz",
+    "C2",
+    "C4",
+    "FC3",
+    "FC1",
+    "FCz",
+    "FC2",
+    "FC4",
+    "CP3",
+    "CP1",
+    "CPz",
+    "CP2",
+    "CP4"
+  ],
+  "use_emg": true,
+  "extract_emg_from_eeg": true,
+  "emg_fs": 512,
+  "emg_bpf_low": 20.0,
+  "emg_bpf_high": 124.0,
+  "emg_notch_hz": [
+    60.0,
+    120.0
+  ],
+  "emg_window_ms": 50,
+  "emg_envelope": "rms",
+  "emg_snr_min_db": -6.0,
+  "emg_validate_split": false,
+  "n_jobs": 4,
+  "use_cache": false,
+  "force_redo": true,
+  "data_dir": "/Volumes/a3122a1/MI-BCI source file/GigaDB_100295",
+  "cache_dir": "/Volumes/a3122a1/MI-BCI source file/cache",
+  "output_dir": "/Volumes/a3122a1/MI-BCI source file/BCI_Research/preprocessed/member_A",
+  "results_csv": "/Volumes/a3122a1/MI-BCI source file/BCI_Research/results/results.csv",
+  "n_subjects": 52,
+  "classes": {
+    "1": "Left_MI",
+    "2": "Right_MI"
+  }
+}
