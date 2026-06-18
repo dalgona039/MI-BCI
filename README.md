@@ -1,3 +1,5 @@
+[DeepL Translation of dalgona039/MI-BCI]
+
 # Multimodal EEG-sEMG Motor Imagery BCI with Real-time VR Avatar Control
 
 > **EEG + sEMG 융합 운동 상상 BCI → Meta Quest 3 VR 아바타 양팔 실시간 제어**
