@@ -1,0 +1,4 @@
+component,type,min_ms,mean_ms,max_ms,std_ms,note
+Server-side processing,measured,18.88,30.94,39.47,4.67,Measured latency
+WebSocket RTT,estimated,8.0,10.0,12.0,,Estimated range
+Unity rendering / IK,estimated,6.0,7.0,8.0,,Estimated range
