@@ -334,16 +334,6 @@ sub-01_member_A.h5
 
 ---
 
-## Team Roles
-
-| Member | Responsibility |
-|---|---|
-| **A (this repository)** | Data loading, EEG preprocessing, LOSO training loop, baseline pipeline code |
-| B | sEMG preprocessing, EEGNet CNN + BiLSTM + Attention Fusion model design |
-| C | XAI (DeepSHAP, Grad-CAM, ERD validation), F1/κ/ITR evaluation, Wilcoxon, paper Results |
-| D | TorchScript/ONNX export, WebSocket server, Unity avatar control, GitHub management |
-
----
 
 ## Citation
 
