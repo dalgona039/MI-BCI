@@ -51,7 +51,8 @@ def main() -> int:
     with open(OUT_DIR / "excluded_epochs.json") as f:
         excl = json.load(f)
 
-    device = pick_device()
+    # fusion = EEGNet 포함 → MPS grouped-conv 버그 회피를 위해 CPU 고정
+    device = pick_device("fusion")
     cfg = dict(CFG)
     print(f"device={device}  |  v4 fusion 체크포인트 재평가\n")
 

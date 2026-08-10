@@ -74,12 +74,41 @@ def set_seed(seed=SEED):
 set_seed()
 
 
-def pick_device() -> torch.device:
-    """CUDA > MPS > CPU. 연산 자체는 동일하며 속도만 다르다."""
+def _mps_grouped_conv_is_broken() -> bool:
+    """MPS grouped-conv 정확성 자가진단.
+
+    이 환경(torch 2.8.0 / macOS arm64)의 MPS 백엔드는 batch>=32 에서
+    depthwise conv `Conv2d(F1, F1*D, (64,1), groups=F1)` 의 결과가 CPU와
+    크게 어긋난다 (오차 ~8.0, 예측 일치율 0.4). 조용히 틀린 값을 내므로
+    EEGNet 을 쓰는 조건(eeg_only/fusion)은 MPS에서 실행하면 안 된다.
+    """
+    try:
+        conv = nn.Conv2d(8, 16, (64, 1), groups=8, bias=False)
+        x = torch.randn(32, 8, 64, 128)
+        with torch.no_grad():
+            ref = conv(x)
+            got = conv.to("mps")(x.to("mps")).cpu()
+        return bool((ref - got).abs().max().item() > 1e-3)
+    except Exception:
+        return True
+
+
+def pick_device(model_type: str = None, force: str = None) -> torch.device:
+    """CUDA > MPS > CPU. EEGNet 계열은 MPS 버그 확인 시 CPU로 강등."""
+    if force:
+        return torch.device(force)
     if torch.cuda.is_available():
         return torch.device("cuda")
-    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
-        return torch.device("mps")
+    mps_ok = (getattr(torch.backends, "mps", None)
+              and torch.backends.mps.is_available())
+    if mps_ok:
+        # EMG BiLSTM 경로는 MPS에서 CPU와 일치함(오차 ~3e-7)이 검증됨.
+        if model_type == "emg_only":
+            return torch.device("mps")
+        if not _mps_grouped_conv_is_broken():
+            return torch.device("mps")
+        print("  ⚠ MPS grouped-conv 버그 감지 → CPU 사용 "
+              "(eeg_only/fusion 은 MPS에서 결과가 틀립니다)")
     return torch.device("cpu")
 
 # ── ITR ─────────────────────────────────────────────────────────
@@ -471,13 +500,13 @@ def _log(out_dir: str, msg: str) -> None:
 
 def run_loso(model_type: str, data_dir: str, out_dir: str,
              cfg: dict, sids: list, excl: dict, seed: int,
-             pool_sids: list = None) -> list:
+             pool_sids: list = None, force_device: str = None) -> list:
     """sids = 평가할 fold 목록, pool_sids = 학습에 쓸 전체 피험자 풀.
 
     D3 로 평가에서 빠진 피험자도 그의 clean trial 은 학습에 계속 쓴다.
     """
     pool_sids = pool_sids or sids
-    device = pick_device()
+    device = pick_device(model_type, force_device)
     os.makedirs(out_dir, exist_ok=True)
     csv_path = os.path.join(out_dir,
                             f"ablation_{model_type}_seed{seed}_results.csv")
@@ -618,6 +647,9 @@ def parse_args():
                    help="결과 병합만 수행")
     p.add_argument("--merge_seeds", type=int, nargs="+",
                    default=[42, 1337, 2024])
+    p.add_argument("--device", type=str, default=None,
+                   choices=["cpu", "cuda", "mps"],
+                   help="디바이스 강제 지정 (기본: 자동 + MPS 안전성 검사)")
     return p.parse_args()
 
 
@@ -655,7 +687,8 @@ def main():
 
     cfg = dict(CFG)
     run_loso(args.model_type, data_dir, out_dir, cfg,
-             eval_sids, excl, args.seed, pool_sids=pool_sids)
+             eval_sids, excl, args.seed, pool_sids=pool_sids,
+             force_device=args.device)
     merge_and_summarize(out_dir, [args.seed], [args.model_type])
 
 
