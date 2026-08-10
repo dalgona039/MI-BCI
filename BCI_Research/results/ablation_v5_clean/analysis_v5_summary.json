@@ -1,0 +1,279 @@
+{
+  "A1_v4": {
+    "eeg_only": {
+      "acc_mean": 0.7215384615384615,
+      "acc_sd": 0.11444837228516612,
+      "kappa_mean": 0.44307692307692303,
+      "kappa_sd": 0.2288967581335157,
+      "itr_mean": 2.6938076923076917,
+      "acc_sd_across_seeds": null
+    },
+    "emg_only": {
+      "acc_mean": 0.6500320384615385,
+      "acc_sd": 0.11542488002787557,
+      "kappa_mean": 0.3000641153846154,
+      "kappa_sd": 0.23084974801199612,
+      "itr_mean": 1.5278634615384616,
+      "acc_sd_across_seeds": null
+    },
+    "fusion": {
+      "acc_mean": 0.741778826923077,
+      "acc_sd": 0.11186769425859354,
+      "kappa_mean": 0.4835577115384615,
+      "kappa_sd": 0.223735373121413,
+      "itr_mean": 3.0537096153846153,
+      "acc_sd_across_seeds": null
+    }
+  },
+  "A2_v4": [
+    {
+      "comparison": "fusion vs eeg_only",
+      "metric": "accuracy",
+      "stat": 557.0,
+      "p_raw": 0.32021371248432584,
+      "z": -0.9935874879931921,
+      "effect_r": 0.13913007711762862,
+      "effect": "small",
+      "p_corr": 1.0
+    },
+    {
+      "comparison": "fusion vs eeg_only",
+      "metric": "kappa",
+      "stat": 557.5,
+      "p_raw": 0.32262399859350066,
+      "z": -0.988900754559262,
+      "effect_r": 0.13847380316896055,
+      "effect": "small",
+      "p_corr": 1.0
+    },
+    {
+      "comparison": "fusion vs eeg_only",
+      "metric": "itr",
+      "stat": 599.5,
+      "p_raw": 0.5516952980590302,
+      "z": -0.5952151461091292,
+      "effect_r": 0.08334679148084355,
+      "effect": "negligible",
+      "p_corr": 1.0
+    },
+    {
+      "comparison": "fusion vs emg_only",
+      "metric": "accuracy",
+      "stat": 167.0,
+      "p_raw": 5.5576349241975925e-06,
+      "z": -4.541867616342393,
+      "effect_r": 0.6423170781534573,
+      "effect": "large",
+      "p_corr": 5.001871431777833e-05
+    },
+    {
+      "comparison": "fusion vs emg_only",
+      "metric": "kappa",
+      "stat": 168.5,
+      "p_raw": 5.965775068510704e-06,
+      "z": -4.527387698330674,
+      "effect_r": 0.6402693085100349,
+      "effect": "large",
+      "p_corr": 5.369197561659633e-05
+    },
+    {
+      "comparison": "fusion vs emg_only",
+      "metric": "itr",
+      "stat": 237.0,
+      "p_raw": 0.00011057233752408533,
+      "z": -3.8661381091288596,
+      "effect_r": 0.5467544947937506,
+      "effect": "large",
+      "p_corr": 0.000995151037716768
+    },
+    {
+      "comparison": "eeg_only vs emg_only",
+      "metric": "accuracy",
+      "stat": 338.5,
+      "p_raw": 0.0023501915716005704,
+      "z": -3.0416899986206682,
+      "effect_r": 0.4259217926855706,
+      "effect": "medium",
+      "p_corr": 0.021151724144405134
+    },
+    {
+      "comparison": "eeg_only vs emg_only",
+      "metric": "kappa",
+      "stat": 337.5,
+      "p_raw": 0.0022782882873515885,
+      "z": -3.0510634654885287,
+      "effect_r": 0.42723434058290677,
+      "effect": "medium",
+      "p_corr": 0.0205045945861643
+    },
+    {
+      "comparison": "eeg_only vs emg_only",
+      "metric": "itr",
+      "stat": 352.0,
+      "p_raw": 0.003555196799924281,
+      "z": -2.915148195904554,
+      "effect_r": 0.408202396071533,
+      "effect": "medium",
+      "p_corr": 0.03199677119931853
+    }
+  ],
+  "A3_A6": [
+    {
+      "id": "A3",
+      "analysis": "rho(w_sEMG, sEMG-only acc)",
+      "v4_paper_ref_rho": 0.53,
+      "v4_rho": 0.5300161051960798,
+      "v4_p": 5.323172047401416e-05,
+      "v4_n": 52,
+      "v4_matched_rho": NaN,
+      "v4_matched_p": NaN,
+      "v4_matched_n": NaN,
+      "v5_rho": NaN,
+      "v5_p": NaN,
+      "v5_n": NaN
+    },
+    {
+      "id": "A4",
+      "analysis": "rho(w_sEMG, resting EMG SNR)",
+      "v4_paper_ref_rho": 0.061,
+      "v4_rho": 0.060616409118073936,
+      "v4_p": 0.6694679547929957,
+      "v4_n": 52,
+      "v4_matched_rho": NaN,
+      "v4_matched_p": NaN,
+      "v4_matched_n": NaN,
+      "v5_rho": NaN,
+      "v5_p": NaN,
+      "v5_n": NaN
+    },
+    {
+      "id": "A5",
+      "analysis": "rho(sEMG-only acc, fusion gain)",
+      "v4_paper_ref_rho": 0.562,
+      "v4_rho": 0.5622048989271494,
+      "v4_p": 1.4423304223801559e-05,
+      "v4_n": 52,
+      "v4_matched_rho": NaN,
+      "v4_matched_p": NaN,
+      "v4_matched_n": NaN,
+      "v5_rho": NaN,
+      "v5_p": NaN,
+      "v5_n": NaN
+    },
+    {
+      "id": "A6",
+      "analysis": "rho(w_sEMG, fusion gain)",
+      "v4_paper_ref_rho": 0.504,
+      "v4_rho": 0.5037154542013872,
+      "v4_p": 0.00014080753312723955,
+      "v4_n": 52,
+      "v4_matched_rho": NaN,
+      "v4_matched_p": NaN,
+      "v4_matched_n": NaN,
+      "v5_rho": NaN,
+      "v5_p": NaN,
+      "v5_n": NaN
+    }
+  ],
+  "A7_v4": {
+    "quartile_means": {
+      "1": 0.25545,
+      "2": 0.25618857142857143,
+      "3": 0.3988346153846154,
+      "4": 0.47585000000000005
+    },
+    "U": 132.0,
+    "p": 0.003614098274898695
+  },
+  "A8_v4": [
+    {
+      "group": "High-sEMG",
+      "n": 27,
+      "metric": "accuracy",
+      "p_raw": 0.007077766410606999,
+      "effect_r": 0.5279810328711283,
+      "p_corr": 0.042466598463641994
+    },
+    {
+      "group": "High-sEMG",
+      "n": 27,
+      "metric": "kappa",
+      "p_raw": 0.007937170492914302,
+      "effect_r": 0.5205096031606877,
+      "p_corr": 0.047623022957485814
+    },
+    {
+      "group": "High-sEMG",
+      "n": 27,
+      "metric": "itr",
+      "p_raw": 0.011500916397185089,
+      "effect_r": 0.49560483745921946,
+      "p_corr": 0.06900549838311053
+    },
+    {
+      "group": "Low-sEMG",
+      "n": 25,
+      "metric": "accuracy",
+      "p_raw": 0.09031611680984497,
+      "effect_r": 0.34171777935012676,
+      "p_corr": 0.5418967008590698
+    },
+    {
+      "group": "Low-sEMG",
+      "n": 25,
+      "metric": "kappa",
+      "p_raw": 0.09031611680984497,
+      "effect_r": 0.3390270881741415,
+      "p_corr": 0.5418967008590698
+    },
+    {
+      "group": "Low-sEMG",
+      "n": 25,
+      "metric": "itr",
+      "p_raw": 0.029578447341918945,
+      "effect_r": 0.43320127933362523,
+      "p_corr": 0.17747068405151367
+    }
+  ],
+  "A10_v4": {
+    "n_bias": 10,
+    "n_total": 52,
+    "sids": [
+      1,
+      5,
+      7,
+      11,
+      12,
+      15,
+      24,
+      28,
+      34,
+      36
+    ],
+    "recall_diff_mean": 0.39383329999999994,
+    "recall_diff_sd": 0.061814378945804806
+  },
+  "A11_v4": {
+    "high(>=80)": {
+      "n": 14,
+      "mean_acc": 89.25
+    },
+    "mid(65-80)": {
+      "n": 28,
+      "mean_acc": 71.64880714285714
+    },
+    "low(<65)": {
+      "n": 10,
+      "mean_acc": 60.15833
+    }
+  },
+  "A9_v4ckpt_alltrials": {
+    "n_subjects": 51,
+    "W": 379.0,
+    "p": 0.00776629741256055,
+    "w_correct": 0.33592260529918233,
+    "w_incorrect": 0.35558510863099857,
+    "rho_conf": -0.1795460177834694,
+    "p_conf": 1.66944166262986e-75
+  }
+}

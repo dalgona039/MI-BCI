@@ -1,0 +1,5 @@
+id,analysis,v4_paper_ref_rho,v4_rho,v4_p,v4_n,v4_matched_rho,v4_matched_p,v4_matched_n,v5_rho,v5_p,v5_n
+A3,"rho(w_sEMG, sEMG-only acc)",0.53,0.5300161051960798,5.323172047401416e-05,52,,,,,,
+A4,"rho(w_sEMG, resting EMG SNR)",0.061,0.060616409118073936,0.6694679547929957,52,,,,,,
+A5,"rho(sEMG-only acc, fusion gain)",0.562,0.5622048989271494,1.4423304223801559e-05,52,,,,,,
+A6,"rho(w_sEMG, fusion gain)",0.504,0.5037154542013872,0.00014080753312723955,52,,,,,,
