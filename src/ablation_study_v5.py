@@ -311,48 +311,79 @@ def train_epoch(model, loader, optimizer, scaler, device):
 
 
 @torch.no_grad()
-def evaluate(model, loader, device):
+def evaluate(model, loader, device, return_detail: bool = False):
+    """v4와 동일한 예측 로직. return_detail=True 면 per-trial 상세도 반환."""
     model.eval()
-    all_pred, all_true = [], []
+    all_pred, all_true, all_prob, all_w = [], [], [], []
     for eeg, emg, lbl in loader:
         eeg, emg = eeg.to(device), emg.to(device)
-        logits, _ = model(eeg, emg)
+        logits, w = model(eeg, emg)
         all_pred.extend(logits.argmax(1).cpu().tolist())
         all_true.extend(lbl.tolist())
-    return np.array(all_pred), np.array(all_true)
+        if return_detail:
+            all_prob.append(F.softmax(logits.float(), dim=1).cpu().numpy())
+            all_w.append(w.float().cpu().numpy() if w is not None else None)
+
+    pred, true = np.array(all_pred), np.array(all_true)
+    if not return_detail:
+        return pred, true
+
+    prob = np.concatenate(all_prob, axis=0)
+    w_arr = (np.concatenate(all_w, axis=0)
+             if all_w and all_w[0] is not None else None)
+    return pred, true, prob, w_arr
+
+
+def _save_per_trial(out_dir: str, model_type: str, seed: int, sid: int,
+                    epoch_idx, true, pred, prob, w_arr) -> None:
+    """T3: fold 평가 결과를 trial 단위로 저장."""
+    d = {
+        "epoch_idx":  np.asarray(epoch_idx, dtype=int),
+        "true_label": true + 1,               # 0/1 → 1(left)/2(right)
+        "pred_label": pred + 1,
+        "correct":    (pred == true).astype(int),
+        "prob_left":  prob[:, 0],
+        "prob_right": prob[:, 1],
+        "confidence": prob.max(axis=1),
+    }
+    if w_arr is not None:
+        d["w_eeg"] = w_arr[:, 0]
+        d["w_emg"] = w_arr[:, 1]
+
+    pt_dir = os.path.join(out_dir, "per_trial")
+    os.makedirs(pt_dir, exist_ok=True)
+    path = os.path.join(pt_dir, f"{model_type}_seed{seed}_s{sid:02d}.csv")
+    _save_atomic(pd.DataFrame(d), path)
 
 
 def run_one_fold(sid: int, all_sids: list, model_type: str,
-                 data_dir: str, ckpt_dir: str, cfg: dict,
-                 device: torch.device, use_existing_ckpt: bool) -> dict:
-    """단일 LOSO fold 실행."""
+                 data_dir: str, out_dir: str, cfg: dict,
+                 device: torch.device, excl: dict, seed: int) -> dict:
+    """단일 LOSO fold 실행 (v5: 오염 에폭 배제 후 전 조건 재학습)."""
+    # fold 단위 재시작에도 결과가 재현되도록 fold별로 시드를 고정
+    set_seed(seed * 100000 + sid)
+
     train_sids = [s for s in all_sids if s != sid]
     test_path  = os.path.join(data_dir, f"sub-{sid:02d}_member_A.h5")
 
     # ── 데이터 로드 ─────────────────────────────────────────────
-    test_ds  = BCIDataset(test_path, cfg["emg_ds_factor"])
+    test_ds  = BCIDataset(test_path, cfg["emg_ds_factor"],
+                          exclude_idx=excl.get(str(sid), {}).get("excl_idx"))
     test_ldr = DataLoader(test_ds, batch_size=64, shuffle=False, num_workers=0)
 
-    # ── Fusion은 기존 체크포인트 사용 ──────────────────────────
-    if use_existing_ckpt and model_type == "fusion":
-        ckpt_path = os.path.join(ckpt_dir, f"best_s{sid:02d}.pt")
-        model = FusionModel(cfg).to(device)
-        state = torch.load(ckpt_path, map_location=device, weights_only=True)
-        model.load_state_dict(state)
-        pred, true = evaluate(model, test_ldr, device)
-        return _metrics(sid, pred, true)
-
-    # ── EEG-only / EMG-only: 재학습 ────────────────────────────
+    # ── 전 조건 재학습 (v4의 fusion 체크포인트 재사용 경로는 제거) ──
     train_datasets = []
     for tr_sid in train_sids:
         tr_path = os.path.join(data_dir, f"sub-{tr_sid:02d}_member_A.h5")
         if os.path.exists(tr_path):
-            train_datasets.append(BCIDataset(tr_path, cfg["emg_ds_factor"]))
+            train_datasets.append(BCIDataset(
+                tr_path, cfg["emg_ds_factor"],
+                exclude_idx=excl.get(str(tr_sid), {}).get("excl_idx")))
 
     from torch.utils.data import ConcatDataset
     train_ds  = ConcatDataset(train_datasets)
     train_ldr = DataLoader(train_ds, batch_size=32, shuffle=True,
-                           num_workers=2, pin_memory=True)
+                           num_workers=0, pin_memory=(device.type == "cuda"))
 
     model     = MODEL_CLASSES[model_type](cfg).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4)
@@ -360,12 +391,12 @@ def run_one_fold(sid: int, all_sids: list, model_type: str,
 
     best_f1, patience_cnt = -1, 0
     PATIENCE, MAX_EPOCHS  = 20, 200
-    best_state = None
+    best_state, best_epoch = None, -1
 
     for epoch in range(1, MAX_EPOCHS + 1):
         train_epoch(model, train_ldr, optimizer, scaler, device)
 
-        # val: test set으로 조기종료 (LOSO 관행)
+        # val: test set으로 조기종료 (v4와 동일 — 낙관 편향은 두 버전 공통)
         pred, true = evaluate(model, test_ldr, device)
         from sklearn.metrics import f1_score
         f1 = f1_score(true, pred, average="macro", zero_division=0)
