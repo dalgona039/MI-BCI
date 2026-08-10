@@ -404,15 +404,28 @@ def run_one_fold(sid: int, all_sids: list, model_type: str,
         if f1 > best_f1:
             best_f1   = f1
             best_state = {k: v.clone() for k, v in model.state_dict().items()}
-            patience_cnt = 0
+            patience_cnt, best_epoch = 0, epoch
         else:
             patience_cnt += 1
             if patience_cnt >= PATIENCE:
                 break
 
     model.load_state_dict(best_state)
-    pred, true = evaluate(model, test_ldr, device)
-    return _metrics(sid, pred, true)
+    pred, true, prob, w_arr = evaluate(model, test_ldr, device,
+                                       return_detail=True)
+    _save_per_trial(out_dir, model_type, seed, sid,
+                    test_ds.epoch_idx, true, pred, prob, w_arr)
+
+    m = _metrics(sid, pred, true)
+    m["seed"]           = seed
+    m["model_type"]     = model_type
+    m["best_epoch"]     = best_epoch
+    m["n_train_trials"] = len(train_ds)
+    if w_arr is not None:
+        m["w_eeg_mean"] = round(float(w_arr[:, 0].mean()), 6)
+        m["w_emg_mean"] = round(float(w_arr[:, 1].mean()), 6)
+        m["w_emg_std"]  = round(float(w_arr[:, 1].std()),  6)
+    return m
 
 
 def _metrics(sid: int, pred: np.ndarray, true: np.ndarray) -> dict:
@@ -449,12 +462,25 @@ def _save_atomic(df: pd.DataFrame, path: str) -> None:
     os.replace(tmp, path)
 
 
-def run_loso(model_type: str, data_dir: str, ckpt_dir: str,
-             out_dir: str, cfg: dict, sids: list) -> list:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    use_existing = (model_type == "fusion")
+def _log(out_dir: str, msg: str) -> None:
+    """진행 상황을 progress.log 에 append (T4)."""
+    stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    with open(os.path.join(out_dir, "progress.log"), "a") as f:
+        f.write(f"[{stamp}] {msg}\n")
+
+
+def run_loso(model_type: str, data_dir: str, out_dir: str,
+             cfg: dict, sids: list, excl: dict, seed: int,
+             pool_sids: list = None) -> list:
+    """sids = 평가할 fold 목록, pool_sids = 학습에 쓸 전체 피험자 풀.
+
+    D3 로 평가에서 빠진 피험자도 그의 clean trial 은 학습에 계속 쓴다.
+    """
+    pool_sids = pool_sids or sids
+    device = pick_device()
     os.makedirs(out_dir, exist_ok=True)
-    csv_path = os.path.join(out_dir, f"ablation_{model_type}_results.csv")
+    csv_path = os.path.join(out_dir,
+                            f"ablation_{model_type}_seed{seed}_results.csv")
 
     # ── 이전 결과 복원 (재개) ────────────────────────────────────
     if os.path.exists(csv_path):
@@ -468,22 +494,26 @@ def run_loso(model_type: str, data_dir: str, ckpt_dir: str,
     remaining = [s for s in sids if s not in done_ids]
 
     print(f"\n{'='*60}")
-    print(f"  Ablation: {model_type.upper()}  |  device={device}")
-    print(f"  전체 {len(sids)}명  |  완료 {len(done_ids)}명  |  남은 {len(remaining)}명")
-    print(f"  기존 체크포인트 재사용={use_existing}")
+    print(f"  Ablation v5-clean: {model_type.upper()}  |  seed={seed}  |  device={device}")
+    print(f"  평가 대상 {len(sids)}명  |  완료 {len(done_ids)}명  |  남은 {len(remaining)}명")
     print(f"{'='*60}\n")
+    _log(out_dir, f"START {model_type} seed={seed} device={device} "
+                  f"remaining={len(remaining)}")
 
     for i, sid in enumerate(remaining, len(done_ids) + 1):
         t0 = time.time()
-        r  = run_one_fold(sid, sids, model_type, data_dir, ckpt_dir,
-                          cfg, device, use_existing)
+        r  = run_one_fold(sid, pool_sids, model_type, data_dir, out_dir,
+                          cfg, device, excl, seed)
         elapsed = time.time() - t0
-        print(f"  [{i:2d}/{len(sids)}] s{sid:02d} | "
-              f"acc={r['accuracy']:.4f}  κ={r['kappa']:.4f}  "
-              f"ITR={r['itr']:.2f}  [{elapsed:.0f}s]")
+        line = (f"[{i:2d}/{len(sids)}] s{sid:02d} | "
+                f"acc={r['accuracy']:.4f}  κ={r['kappa']:.4f}  "
+                f"ITR={r['itr']:.2f}  n={r['n_trials']}  "
+                f"ep={r['best_epoch']}  [{elapsed:.0f}s]")
+        print("  " + line)
         results.append(r)
-        # fold 완료 즉시 Drive에 저장
+        # fold 완료 즉시 저장 → 중단 시 이 지점부터 재개
         _save_atomic(pd.DataFrame(results), csv_path)
+        _log(out_dir, f"{model_type} seed={seed} " + line)
 
     print(f"\n  저장: {csv_path}")
 
@@ -498,117 +528,135 @@ def run_loso(model_type: str, data_dir: str, ckpt_dir: str,
     return results
 
 
-def merge_and_summarize(out_dir: str):
-    """세 조건 CSV를 병합하여 ablation_results.csv 와 ablation_summary.json 생성."""
-    dfs = {}
-    for cond in ["eeg_only", "emg_only", "fusion"]:
-        p = os.path.join(out_dir, f"ablation_{cond}_results.csv")
-        if os.path.exists(p):
-            dfs[cond] = pd.read_csv(p)
 
-    if len(dfs) < 3:
-        print(f"  병합 건너뜀 — 아직 {3-len(dfs)}개 조건 미완료")
+
+def merge_and_summarize(out_dir: str, seeds: list, conds: list):
+    """조건 × seed CSV 를 병합 → ablation_v5_results.csv / _summary.json."""
+    frames = []
+    for cond in conds:
+        for sd in seeds:
+            p = os.path.join(out_dir, f"ablation_{cond}_seed{sd}_results.csv")
+            if os.path.exists(p):
+                df = pd.read_csv(p)
+                df["model_type"] = cond
+                df["seed"] = sd
+                frames.append(df)
+
+    if not frames:
+        print("  병합할 결과 없음")
         return
 
-    base = dfs["fusion"][["sid"]].copy()
-    for cond, df in dfs.items():
-        base[f"acc_{cond}"]   = df["accuracy"].values
-        base[f"kappa_{cond}"] = df["kappa"].values
-        base[f"itr_{cond}"]   = df["itr"].values
-        base[f"left_recall_{cond}"]  = df["left_recall"].values
-        base[f"right_recall_{cond}"] = df["right_recall"].values
-
-    merged_path = os.path.join(out_dir, "ablation_results.csv")
-    base.to_csv(merged_path, index=False)
-    print(f"  병합 저장: {merged_path}")
+    allr = pd.concat(frames, ignore_index=True)
+    _save_atomic(allr, os.path.join(out_dir, "ablation_v5_results.csv"))
+    print(f"  병합 저장: ablation_v5_results.csv  ({len(allr)} rows)")
 
     summary = {}
-    for cond in ["eeg_only", "emg_only", "fusion"]:
-        df = dfs[cond]
+    for cond in conds:
+        sub = allr[allr.model_type == cond]
+        if sub.empty:
+            continue
+        # seed 별 피험자 평균 → seed 간 SD
+        per_seed = sub.groupby("seed")[["accuracy", "kappa", "itr"]].mean()
+        # 전 seed 를 합친 피험자 단위 평균 (피험자 간 SD)
+        per_sid = sub.groupby("sid")[["accuracy", "kappa", "itr"]].mean()
         summary[cond] = {
-            "accuracy_mean": round(float(df["accuracy"].mean()), 4),
-            "accuracy_std":  round(float(df["accuracy"].std()),  4),
-            "kappa_mean":    round(float(df["kappa"].mean()),    4),
-            "kappa_std":     round(float(df["kappa"].std()),     4),
-            "itr_mean":      round(float(df["itr"].mean()),      4),
-            "itr_std":       round(float(df["itr"].std()),       4),
+            "n_subjects":       int(sub["sid"].nunique()),
+            "seeds":            sorted(int(s) for s in sub["seed"].unique()),
+            "accuracy_mean":    round(float(per_sid["accuracy"].mean()), 4),
+            "accuracy_std_subj": round(float(per_sid["accuracy"].std()), 4),
+            "accuracy_std_seed": round(float(per_seed["accuracy"].std()), 4)
+                                 if len(per_seed) > 1 else None,
+            "kappa_mean":       round(float(per_sid["kappa"].mean()), 4),
+            "kappa_std_subj":   round(float(per_sid["kappa"].std()), 4),
+            "kappa_std_seed":   round(float(per_seed["kappa"].std()), 4)
+                                 if len(per_seed) > 1 else None,
+            "itr_mean":         round(float(per_sid["itr"].mean()), 4),
+            "itr_std_subj":     round(float(per_sid["itr"].std()), 4),
         }
 
-    summary_path = os.path.join(out_dir, "ablation_summary.json")
-    with open(summary_path, "w") as f:
+    with open(os.path.join(out_dir, "ablation_v5_summary.json"), "w") as f:
         json.dump(summary, f, indent=2)
-    print(f"  요약 저장: {summary_path}")
-
-    # confusion matrix JSON
-    cm_dict = {}
-    for cond, df in dfs.items():
-        import ast
-        cm_agg = np.zeros((2, 2), dtype=int)
-        if "confusion" in df.columns:
-            for _, row in df.iterrows():
-                try:
-                    cm = np.array(ast.literal_eval(str(row["confusion"])))
-                    cm_agg += cm
-                except Exception:
-                    pass
-        cm_dict[cond] = cm_agg.tolist()
-
-    cm_path = os.path.join(out_dir, "ablation_confusion_matrix.json")
-    with open(cm_path, "w") as f:
-        json.dump(cm_dict, f, indent=2)
-    print(f"  Confusion matrix 저장: {cm_path}")
+    print("  요약 저장: ablation_v5_summary.json")
+    for c, v in summary.items():
+        print(f"    {c:9s} acc={v['accuracy_mean']:.4f}±{v['accuracy_std_subj']:.4f}"
+              f"  κ={v['kappa_mean']:.4f}  (n={v['n_subjects']}, "
+              f"seeds={v['seeds']})")
 
 
 # ════════════════════════════════════════════════════════════════
 #  CLI
 # ════════════════════════════════════════════════════════════════
 
+def load_exclusions(path: str):
+    with open(path) as f:
+        excl = json.load(f)
+    n_ex = sum(len(v["excl_idx"]) for v in excl.values())
+    n_tot = sum(v["n_total"] for v in excl.values())
+    print(f"  배제 로드: {len(excl)}명 / {n_ex}개 에폭 제거 "
+          f"({100*n_ex/n_tot:.2f}% of {n_tot})")
+    return excl
+
+
 def parse_args():
     p = argparse.ArgumentParser(
-        description="BCI Ablation Study — EEG-only / sEMG-only / Fusion",
+        description="BCI Ablation v5-clean — 움직임 오염 trial 배제 후 재학습",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    p.add_argument("--model_type", type=str, required=True,
+    p.add_argument("--model_type", type=str,
                    choices=["eeg_only", "emg_only", "fusion"],
-                   help="실행할 조건")
-    p.add_argument("--drive_root", type=str, default=None,
-                   help="Colab Drive 경로 (예: /content/drive/MyDrive/BCI_Research)")
-    p.add_argument("--data_dir",  type=str, default=None,
-                   help="HDF5 파일 디렉터리 (지정 시 drive_root 보다 우선)")
-    p.add_argument("--ckpt_dir",  type=str, default=None,
-                   help="체크포인트 디렉터리 (fusion 조건용)")
-    p.add_argument("--out_dir",   type=str, default=None,
-                   help="결과 저장 디렉터리")
-    p.add_argument("--sids",      type=int, nargs="+", default=list(range(1, 53)),
-                   help="실행할 피험자 목록 (기본: 1~52)")
-    p.add_argument("--merge",     action="store_true",
-                   help="세 조건 CSV를 ablation_results.csv 로 병합만 수행")
+                   help="실행할 조건 (--merge 시 생략 가능)")
+    p.add_argument("--seed", type=int, default=42, help="난수 시드 (D4)")
+    p.add_argument("--data_dir", type=str, default=None)
+    p.add_argument("--out_dir", type=str, default=None)
+    p.add_argument("--exclude_json", type=str, default=None,
+                   help="excluded_epochs.json 경로")
+    p.add_argument("--sids", type=int, nargs="+", default=None,
+                   help="평가할 피험자 (기본: excluded_epochs.json 의 eligible)")
+    p.add_argument("--include_ineligible", action="store_true",
+                   help="D3 미달(클래스당 <30 trial) 피험자도 평가에 포함")
+    p.add_argument("--merge", action="store_true",
+                   help="결과 병합만 수행")
+    p.add_argument("--merge_seeds", type=int, nargs="+",
+                   default=[42, 1337, 2024])
     return p.parse_args()
 
 
 def main():
     args = parse_args()
-
-    # 경로 결정
-    if args.drive_root:
-        root     = Path(args.drive_root)
-        # --data_dir 명시 시 Drive 경로보다 우선 (로컬 캐시 사용 목적)
-        data_dir = args.data_dir or str(root / "preprocessed" / "member_A")
-        ckpt_dir = args.ckpt_dir or str(root / "results" / "checkpoints_A")
-        out_dir  = args.out_dir  or str(root / "results" / "ablation")
-    else:
-        local    = Path(__file__).resolve().parent.parent
-        data_dir = args.data_dir or str(local / "BCI_Research" / "preprocessed" / "member_A")
-        ckpt_dir = args.ckpt_dir or str(local / "BCI_Research" / "results" / "checkpoints_A")
-        out_dir  = args.out_dir  or str(local / "BCI_Research" / "results" / "ablation")
+    local = Path(__file__).resolve().parent.parent
+    data_dir = args.data_dir or str(local / "BCI_Research" / "preprocessed" / "member_A")
+    out_dir = args.out_dir or str(local / "BCI_Research" / "results" / "ablation_v5_clean")
+    excl_json = args.exclude_json or os.path.join(out_dir, "excluded_epochs.json")
+    os.makedirs(out_dir, exist_ok=True)
 
     if args.merge:
-        merge_and_summarize(out_dir)
+        merge_and_summarize(out_dir, args.merge_seeds,
+                            ["eeg_only", "emg_only", "fusion"])
         return
 
+    if not args.model_type:
+        raise SystemExit("--model_type 이 필요합니다 (또는 --merge)")
+
+    excl = load_exclusions(excl_json)
+
+    # 학습 풀 = 플래그를 확보한 전 피험자 (D1: s06 은 .mat 부재로 제외)
+    pool_sids = sorted(int(k) for k in excl.keys())
+    # 평가 대상 = D3 기준 통과 피험자
+    if args.sids:
+        eval_sids = args.sids
+    elif args.include_ineligible:
+        eval_sids = pool_sids
+    else:
+        eval_sids = [s for s in pool_sids if excl[str(s)]["eligible"]]
+        dropped = [s for s in pool_sids if not excl[str(s)]["eligible"]]
+        if dropped:
+            print(f"  D3: 클래스당 <30 trial → 평가 제외 {dropped} "
+                  f"(학습에는 계속 사용)")
+
     cfg = dict(CFG)
-    run_loso(args.model_type, data_dir, ckpt_dir, out_dir, cfg, args.sids)
-    merge_and_summarize(out_dir)
+    run_loso(args.model_type, data_dir, out_dir, cfg,
+             eval_sids, excl, args.seed, pool_sids=pool_sids)
+    merge_and_summarize(out_dir, [args.seed], [args.model_type])
 
 
 if __name__ == "__main__":
