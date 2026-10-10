@@ -180,6 +180,10 @@ def main():
               "patience": args.patience, "pool": pool, "eligible": eligible,
               "clean_eeg_renormalization": True,
               "exclusions_sha256": hashlib.sha256(args.exclude_json.read_bytes()).hexdigest(),
+              "runner_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+              "model_sha256": hashlib.sha256(
+                  Path(sys.modules["ablation_study_v5"].__file__).read_bytes()
+              ).hexdigest(),
               "data_dir": str(args.data_dir.resolve())}
     config_path = output.with_suffix(".config.json")
     if config_path.exists():
