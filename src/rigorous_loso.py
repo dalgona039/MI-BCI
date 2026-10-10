@@ -10,9 +10,10 @@ Validation is clean in both conditions. The test subject is never inspected for
 model selection. This is a new protocol: do not compare its absolute scores to
 the saved v4/v5 scores as though only the exclusion policy had changed.
 
-The input HDF5 was already normalized per subject before bad trials were
-removed. This script tests the training-trial effect, not a fully reprocessed
-raw-signal pipeline. See RESEARCH_DIAGNOSIS.md.
+The clean condition recalculates each subject's EEG channel mean/std using
+only retained epochs, reversing the effect of flagged epochs on the stored
+z-score. ICA and continuous filtering were fitted before this step, so this
+is not a fully reprocessed raw-signal pipeline. See RESEARCH_DIAGNOSIS.md.
 """
 
 import argparse
@@ -73,9 +74,18 @@ def load_manifest(exclusions_path, data_dir):
 
 
 def make_dataset(sid, data_dir, exclusions, clean):
-    return BCIDataset(str(data_dir / f"sub-{sid:02d}_member_A.h5"),
-                      CFG["emg_ds_factor"],
-                      exclude_idx=exclusions[str(sid)]["excl_idx"] if clean else None)
+    ds = BCIDataset(str(data_dir / f"sub-{sid:02d}_member_A.h5"),
+                    CFG["emg_ds_factor"],
+                    exclude_idx=exclusions[str(sid)]["excl_idx"] if clean else None)
+    if clean:
+        # HDF5 eeg/epochs was z-scored over all subject epochs. An affine
+        # re-z-score of retained epochs is mathematically the same as
+        # reconstructing pre-normalized epochs with saved norm_mean/std,
+        # then fitting z-score statistics on retained epochs alone.
+        mean = ds.eeg.mean(dim=(0, 2), keepdim=True)
+        std = ds.eeg.std(dim=(0, 2), keepdim=True, correction=0)
+        ds.eeg = (ds.eeg - mean) / (std + 1e-10)
+    return ds
 
 
 def run_fold(test_sid, eligible, pool, exclusions, data_dir, model_type,
@@ -168,6 +178,7 @@ def main():
     config = {"condition": args.condition, "model_type": args.model_type,
               "seed": args.seed, "max_epochs": args.max_epochs,
               "patience": args.patience, "pool": pool, "eligible": eligible,
+              "clean_eeg_renormalization": True,
               "exclusions_sha256": hashlib.sha256(args.exclude_json.read_bytes()).hexdigest(),
               "data_dir": str(args.data_dir.resolve())}
     config_path = output.with_suffix(".config.json")
