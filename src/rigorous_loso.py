@@ -12,8 +12,9 @@ the saved v4/v5 scores as though only the exclusion policy had changed.
 
 The clean condition recalculates each subject's EEG channel mean/std using
 only retained epochs, reversing the effect of flagged epochs on the stored
-z-score. ICA and continuous filtering were fitted before this step, so this
-is not a fully reprocessed raw-signal pipeline. See RESEARCH_DIAGNOSIS.md.
+z-score. HDF5 epochs are streamed into each batch to bound RAM use. ICA and
+continuous filtering were fitted before this step, so this is not a fully
+reprocessed raw-signal pipeline. See RESEARCH_DIAGNOSIS.md.
 """
 
 import argparse
@@ -23,15 +24,17 @@ import json
 import os
 import sys
 import time
+from functools import lru_cache
 from pathlib import Path
 
+import h5py
 import numpy as np
 import torch
 from sklearn.metrics import f1_score
-from torch.utils.data import ConcatDataset, DataLoader
+from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
 from ablation_study_v5 import (
-    BCIDataset, CFG, MODEL_CLASSES, _metrics, evaluate, pick_device,
+    CFG, MODEL_CLASSES, _metrics, evaluate, pick_device,
     set_seed, train_epoch,
 )
 
@@ -44,23 +47,24 @@ FIELDS = ["sid", "validation_sid", "seed", "model_type", "condition",
           "n_trials", "n_train_trials", "n_val_trials", "best_epoch",
           "epochs_run"]
 
-# These two runner versions differ only in progress reporting (git commit
-# c61c44e). Their training, validation, and test calculations are identical.
-LOGGING_ONLY_PREDECESSORS = {
+# These predecessor hashes were generated before progress logging (c61c44e)
+# and before HDF5 streaming. The streaming dataset was checked against the
+# eager loader for retained indices, labels, EEG, and sEMG sample values.
+COMPATIBLE_PREDECESSORS = {
     "e62f4f76bdcf5dcb6fd5d09476afe25f0241ff9943eca2eca0c74946ce022cd7",
     "e2123590927e043b965febe91a1e467d9cac184a1041da70a591d4c49d59a205",
 }
 
 
 def resume_config_matches(saved, current):
-    """Accept exact settings or audited older versions with logging changes only."""
+    """Accept exact settings or audited older versions with equal data values."""
     if saved == current:
         return True
     saved_without_runner = {k: v for k, v in saved.items()
                             if k != "runner_sha256"}
     current_without_runner = {k: v for k, v in current.items()
                               if k != "runner_sha256"}
-    return (saved.get("runner_sha256") in LOGGING_ONLY_PREDECESSORS
+    return (saved.get("runner_sha256") in COMPATIBLE_PREDECESSORS
             and saved_without_runner == current_without_runner)
 
 
@@ -93,19 +97,77 @@ def load_manifest(exclusions_path, data_dir):
     return exclusions, pool, eligible
 
 
-def make_dataset(sid, data_dir, exclusions, clean):
-    ds = BCIDataset(str(data_dir / f"sub-{sid:02d}_member_A.h5"),
-                    CFG["emg_ds_factor"],
-                    exclude_idx=exclusions[str(sid)]["excl_idx"] if clean else None)
-    if clean:
-        # HDF5 eeg/epochs was z-scored over all subject epochs. An affine
-        # re-z-score of retained epochs is mathematically the same as
-        # reconstructing pre-normalized epochs with saved norm_mean/std,
-        # then fitting z-score statistics on retained epochs alone.
-        mean = ds.eeg.mean(dim=(0, 2), keepdim=True)
-        std = ds.eeg.std(dim=(0, 2), keepdim=True, correction=0)
-        ds.eeg = (ds.eeg - mean) / (std + 1e-10)
-    return ds
+@lru_cache(maxsize=64)
+def _clean_eeg_stats(path, excluded):
+    """Match the original torch z-score, with only one subject in RAM at once."""
+    with h5py.File(path, "r") as stream:
+        eeg = stream["eeg/epochs"][:]
+    if excluded:
+        keep = np.ones(len(eeg), dtype=bool)
+        keep[list(excluded)] = False
+        eeg = eeg[keep]
+    values = torch.from_numpy(np.asarray(eeg, dtype=np.float32))
+    mean = values.mean(dim=(0, 2), keepdim=True).squeeze(0)
+    std = values.std(dim=(0, 2), keepdim=True, correction=0).squeeze(0)
+    return mean, std
+
+
+class StreamingBCIDataset(Dataset):
+    """Read requested epochs from HDF5 instead of retaining a full cohort."""
+
+    def __init__(self, path, excluded, clean, model_type):
+        self.path = str(path)
+        self.model_type = model_type
+        self._stream = None
+        with h5py.File(self.path, "r") as stream:
+            n = min(len(stream["eeg/epochs"]), len(stream["emg/epochs"]),
+                    len(stream["labels"]))
+            labels = stream["labels"][:n].astype(np.int64) - 1
+        excluded = tuple(sorted(set(int(i) for i in excluded))) if clean else ()
+        if excluded and (excluded[0] < 0 or excluded[-1] >= n):
+            raise ValueError(f"Exclusion index outside [0,{n - 1}]: {path}")
+        keep = np.ones(n, dtype=bool)
+        if excluded:
+            keep[list(excluded)] = False
+        self.epoch_idx = np.flatnonzero(keep)
+        self.labels = labels[keep]
+        if clean and model_type != "emg_only":
+            self.mean, self.std = _clean_eeg_stats(self.path, excluded)
+        else:
+            self.mean = self.std = None
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        if self._stream is None:
+            self._stream = h5py.File(self.path, "r")
+        epoch = int(self.epoch_idx[idx])
+        if self.model_type == "emg_only":
+            eeg = torch.zeros((1, 1), dtype=torch.float32)
+        else:
+            eeg = torch.from_numpy(np.asarray(
+                self._stream["eeg/epochs"][epoch], dtype=np.float32))
+            if self.mean is not None:
+                eeg = (eeg - self.mean) / (self.std + 1e-10)
+        if self.model_type == "eeg_only":
+            emg = torch.zeros((1, 1), dtype=torch.float32)
+        else:
+            emg = torch.from_numpy(np.asarray(
+                self._stream["emg/epochs"][epoch, :, ::CFG["emg_ds_factor"]],
+                dtype=np.float32))
+        return eeg, emg, torch.tensor(int(self.labels[idx]), dtype=torch.long)
+
+    def __del__(self):
+        stream = getattr(self, "_stream", None)
+        if stream is not None:
+            stream.close()
+
+
+def make_dataset(sid, data_dir, exclusions, clean, model_type):
+    path = data_dir / f"sub-{sid:02d}_member_A.h5"
+    return StreamingBCIDataset(path, exclusions[str(sid)]["excl_idx"],
+                               clean, model_type)
 
 
 def run_fold(test_sid, eligible, pool, exclusions, data_dir, model_type,
@@ -113,10 +175,11 @@ def run_fold(test_sid, eligible, pool, exclusions, data_dir, model_type,
     train_sids, validation_sid = split_subjects(test_sid, eligible, pool, seed)
     set_seed(seed * 100000 + test_sid)
     train_clean = condition == "clean_train"
-    training = ConcatDataset([make_dataset(s, data_dir, exclusions, train_clean)
+    training = ConcatDataset([make_dataset(s, data_dir, exclusions,
+                                           train_clean, model_type)
                               for s in train_sids])
-    validation = make_dataset(validation_sid, data_dir, exclusions, True)
-    testing = make_dataset(test_sid, data_dir, exclusions, True)
+    validation = make_dataset(validation_sid, data_dir, exclusions, True, model_type)
+    testing = make_dataset(test_sid, data_dir, exclusions, True, model_type)
     train_loader = DataLoader(training, batch_size=32, shuffle=True,
                               num_workers=0, pin_memory=device.type == "cuda")
     val_loader = DataLoader(validation, batch_size=64, shuffle=False)
@@ -218,8 +281,8 @@ def main():
             raise RuntimeError(f"Refusing to resume with different settings "
                                f"({', '.join(changed)}): {output}")
         if saved_config != config:
-            print("기존 결과는 진행률 출력만 다른 이전 코드로 생성됐습니다. "
-                  "동일한 학습·평가 설정으로 이어서 실행합니다.", flush=True)
+            print("기존 결과는 검증된 이전 데이터 로더·출력 코드로 생성됐습니다. "
+                  "동일한 학습·평가 값으로 이어서 실행합니다.", flush=True)
     else:
         if output.exists():
             raise RuntimeError(f"Results exist without a config manifest: {output}")

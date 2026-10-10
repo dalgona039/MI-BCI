@@ -76,6 +76,27 @@ intervals and the full per-subject distribution. Report all 49 subjects,
 including negative gains. Gate-weight correlations, subgroup boundaries, and
 right-bias analyses should be declared exploratory unless fixed in advance.
 
+### Faster subject-disjoint option: fixed five-fold evaluation
+
+`notebooks/S7_Rigorous_Group5_Colab.ipynb` runs a separate five-fold protocol
+using `src/rigorous_group5.py`. Its fixed outer partition tests each of the 49
+eligible subjects once per seed. A clean validation subject is drawn only from
+the training side of each fold. The 2 conditions × 3 models × 3 seeds require
+90 model fits instead of LOSO's 882; each fit evaluates 9 or 10 test subjects.
+Results are stored in `results/rigorous_group5`, isolated from LOSO results.
+The runner saves completed folds and resumes compatible runs. It uses the same
+HDF5 trial selection, clean EEG re-normalization, and HDF5 streaming loader as
+the LOSO runner. The five-fold design trains on 40 or 41 other subjects per fit
+rather than 49, so absolute scores cannot be compared directly with LOSO.
+
+`src/analyze_rigorous_group5.py` checks all 18 complete paired runs and uses
+whole-fold cluster resampling for intervals: subjects tested by one fitted
+model are not independent model replications. Only five outer clusters are
+available, so intervals are exploratory and should not be used as a definitive
+significance claim. The main contrast remains the clean-versus-dirty change
+in fusion's gain over EEG-only. The notebook does not start training by itself;
+the user must execute its cells with a Colab GPU kernel.
+
 ## Execution in this workspace
 
 - Verified: 52 HDF5 subjects, 51 raw `.mat` subjects, 51 raw subjects in the
