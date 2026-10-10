@@ -44,6 +44,25 @@ FIELDS = ["sid", "validation_sid", "seed", "model_type", "condition",
           "n_trials", "n_train_trials", "n_val_trials", "best_epoch",
           "epochs_run"]
 
+# These two runner versions differ only in progress reporting (git commit
+# c61c44e). Their training, validation, and test calculations are identical.
+LOGGING_ONLY_PREDECESSORS = {
+    "e62f4f76bdcf5dcb6fd5d09476afe25f0241ff9943eca2eca0c74946ce022cd7",
+    "e2123590927e043b965febe91a1e467d9cac184a1041da70a591d4c49d59a205",
+}
+
+
+def resume_config_matches(saved, current):
+    """Accept exact settings or audited older versions with logging changes only."""
+    if saved == current:
+        return True
+    saved_without_runner = {k: v for k, v in saved.items()
+                            if k != "runner_sha256"}
+    current_without_runner = {k: v for k, v in current.items()
+                              if k != "runner_sha256"}
+    return (saved.get("runner_sha256") in LOGGING_ONLY_PREDECESSORS
+            and saved_without_runner == current_without_runner)
+
 
 def split_subjects(test_sid, eligible_sids, pool_sids, seed):
     """Select a deterministic, eligible validation subject inside the outer fold."""
@@ -192,8 +211,15 @@ def main():
               "data_dir": str(args.data_dir.resolve())}
     config_path = output.with_suffix(".config.json")
     if config_path.exists():
-        if json.loads(config_path.read_text()) != config:
-            raise RuntimeError(f"Refusing to resume with different settings: {output}")
+        saved_config = json.loads(config_path.read_text())
+        if not resume_config_matches(saved_config, config):
+            changed = sorted(key for key in saved_config.keys() | config.keys()
+                             if saved_config.get(key) != config.get(key))
+            raise RuntimeError(f"Refusing to resume with different settings "
+                               f"({', '.join(changed)}): {output}")
+        if saved_config != config:
+            print("기존 결과는 진행률 출력만 다른 이전 코드로 생성됐습니다. "
+                  "동일한 학습·평가 설정으로 이어서 실행합니다.", flush=True)
     else:
         if output.exists():
             raise RuntimeError(f"Results exist without a config manifest: {output}")
