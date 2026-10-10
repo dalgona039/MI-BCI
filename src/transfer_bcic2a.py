@@ -75,12 +75,12 @@ GIGADB_64 = [
 BCIC_22 = [
     'Fz','FC3','FC1','FCz','FC2','FC4','C5','C3','C1',
     'Cz','C2','C4','C6','CP3','CP1','CPz','CP2','CP4',
-    'P1','Pz','P2','Oz',
+    'P1','Pz','P2','POz',
 ]
 
 # GigaDB 64ch 중 BCIC 22ch에 해당하는 인덱스 (사전 계산)
 GIGADB_22_IDX = [GIGADB_64.index(ch) for ch in BCIC_22]
-# = [4,8,9,10,11,12,15,16,17,18,19,20,21,25,26,27,28,29,35,36,37,49]
+# Map by electrode name; never reuse the old hard-coded index list (which used Oz).
 
 # GDF 파일의 채널 이름 → 표준 이름 매핑
 # MNE로 읽으면 EEG-C3, EEG-0 등으로 표시됨 → 위치 기반으로 처리
@@ -140,6 +140,15 @@ def bandpass_filter(data, low=4.0, high=40.0, fs=512, order=4):
     b, a = butter(order, [low / nyq, high / nyq], btype='band')
     return filtfilt(b, a, data, axis=-1)
 
+
+def normalize_subject_epochs(eeg: np.ndarray) -> np.ndarray:
+    """Channel-wise z-score over every epoch and sample of one subject."""
+    if eeg.ndim != 3 or eeg.shape[0] == 0:
+        raise ValueError("Expected non-empty (epochs, channels, samples) EEG")
+    mu = eeg.mean(axis=(0, 2), keepdims=True)
+    std = eeg.std(axis=(0, 2), keepdims=True) + 1e-8
+    return ((eeg - mu) / std).astype(np.float32)
+
 def load_bcic_subject(gdf_train: str, gdf_eval: str) -> tuple:
     """
     BCIC IV 2a 피험자 GDF 파일 로드 → Left/Right 손 MI 에포크 추출.
@@ -193,18 +202,18 @@ def load_bcic_subject(gdf_train: str, gdf_eval: str) -> tuple:
             # resample: (22, 1000) → (22, 2048)  [512/250 * 1000 = 2048.0 exactly]
             epoch_512 = resample(epoch, N_TIMES, axis=-1)  # (22, 2048)
 
-            # z-score 정규화 (per-channel, per-trial — GigaDB와 동일)
-            mu  = epoch_512.mean(axis=-1, keepdims=True)
-            std = epoch_512.std(axis=-1, keepdims=True) + 1e-8
-            epoch_512 = (epoch_512 - mu) / std
-
             all_eeg.append(epoch_512.astype(np.float32))
             all_lbl.append(target_codes[code])
 
     if not all_eeg:
         return None, None
 
-    return np.stack(all_eeg), np.array(all_lbl, dtype=np.int64)
+    # GigaDB source HDF5 uses one mean/std per subject and channel across
+    # all epochs and time samples. Match that transductive normalization here.
+    # It uses no labels, but includes target evaluation epochs; a prospective
+    # online transfer study must instead estimate calibration statistics first.
+    eeg = normalize_subject_epochs(np.stack(all_eeg))
+    return eeg, np.array(all_lbl, dtype=np.int64)
 
 
 class BCICDataset(Dataset):
