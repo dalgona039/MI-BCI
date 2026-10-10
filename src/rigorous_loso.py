@@ -22,6 +22,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -119,8 +120,12 @@ def run_fold(test_sid, eligible, pool, exclusions, data_dir, model_type,
             best_epoch, stale = epoch, 0
         else:
             stale += 1
-            if stale >= patience:
-                break
+        if epoch == 1 or epoch % 5 == 0 or stale >= patience:
+            print(f"    s{test_sid:02d} epoch {epoch}/{max_epochs} "
+                  f"validation_F1={score:.4f} best_epoch={best_epoch} "
+                  f"patience={stale}/{patience}", flush=True)
+        if stale >= patience:
+            break
 
     model.load_state_dict(best_state)
     # The test set is evaluated exactly once, after model selection is over.
@@ -198,10 +203,17 @@ def main():
     if output.exists():
         with output.open(newline="") as stream:
             completed = {int(row["sid"]) for row in csv.DictReader(stream)}
+    completed_count = len(completed.intersection(targets))
+    total = len(targets)
+    print(f"{args.condition} / {args.model_type} / seed {args.seed}: "
+          f"완료 {completed_count}/{total}, 남음 {total - completed_count}", flush=True)
     for sid in targets:
         if sid in completed:
-            print(f"s{sid:02d}: already complete")
             continue
+        _, validation_sid = split_subjects(sid, eligible, pool, args.seed)
+        print(f"[{completed_count}/{total}] s{sid:02d} 시작 "
+              f"(validation=s{validation_sid:02d})", flush=True)
+        started = time.perf_counter()
         row = run_fold(sid, eligible, pool, exclusions, args.data_dir,
                        args.model_type, args.condition, args.seed,
                        args.max_epochs, args.patience, device)
@@ -211,8 +223,11 @@ def main():
             if new_file:
                 writer.writeheader()
             writer.writerow({key: row[key] for key in FIELDS})
-        print(f"s{sid:02d} {args.condition} {args.model_type}: "
-              f"accuracy={row['accuracy']:.4f}, best_epoch={row['best_epoch']}")
+        completed_count += 1
+        print(f"[{completed_count}/{total}] s{sid:02d} 완료 "
+              f"accuracy={row['accuracy']:.4f}, best_epoch={row['best_epoch']}, "
+              f"elapsed={time.perf_counter() - started:.0f}s; "
+              f"남음 {total - completed_count}", flush=True)
     return 0
 
 
